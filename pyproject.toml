@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rihla"
+version = "0.1.0"
+description = "Flexible multi-leg, multi-airport flight search that finds the cheapest route across an entire itinerary."
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Leandro Garcia" }]
+dependencies = [
+    "amadeus",        # Amadeus Self-Service SDK (live fetcher; lazily imported)
+    "python-dotenv",  # load credentials from a local .env in the CLI
+]
+
+[project.optional-dependencies]
+# Pulled in at the MCP release milestone (M5): pip install -e ".[mcp]"
+mcp = ["mcp"]
+# Tooling for local development: pip install -e ".[dev]"
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+rihla = "rihla.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

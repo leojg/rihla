@@ -1,0 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg
+*.egg-info/
+.eggs/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# --- Environment / secrets (keep .env.example tracked) ---
+.env
+.env.*
+!.env.example
+
+# --- Local data: sqlite price cache (incl. negative-cache rows) ---
+*.db
+*.sqlite
+*.sqlite3
+flight_cache.db
+
+# --- Docs / planning: private for now (un-ignore selectively at release) ---
+docs/
+.docs/
+.specs/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
