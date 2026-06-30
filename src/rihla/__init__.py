@@ -7,7 +7,7 @@ constraints between legs.
 
 Layout:
   core        - data model + the pure optimizer (no I/O, no rihla deps)
-  fetchers/   - the price-fetch layer (PriceFetcher protocol, Mock + Amadeus, build_grid)
+  fetchers/   - the price-fetch layer (PriceFetcher, Mock/Travelpayouts/SerpApi, merge, build_grid)
   places      - predefined airport sets / regions + the canonical example trip
   cli         - run a query from the command line
 """
@@ -17,16 +17,26 @@ from rihla.core import (
     Leg,
     Place,
     PricedLeg,
+    Quote,
     Trip,
     linear_trip,
     optimize,
 )
-from rihla.fetchers import AmadeusFetcher, MockFetcher, PriceFetcher, build_grid, fetch_leg
+from rihla.fetchers import (
+    CompositeFetcher,
+    MockFetcher,
+    PriceFetcher,
+    SerpApiFetcher,
+    TravelpayoutsFetcher,
+    build_grid,
+    fetch_leg,
+    merge_quotes,
+)
 
 __version__ = "0.1.0"
 
 __all__ = [
-    "Place", "Leg", "Gap", "PricedLeg", "Trip", "Bundle", "linear_trip", "optimize",
-    "PriceFetcher", "build_grid", "fetch_leg", "MockFetcher", "AmadeusFetcher",
-    "__version__",
+    "Place", "Leg", "Gap", "Quote", "PricedLeg", "Trip", "Bundle", "linear_trip", "optimize",
+    "PriceFetcher", "build_grid", "fetch_leg", "merge_quotes", "CompositeFetcher",
+    "MockFetcher", "TravelpayoutsFetcher", "SerpApiFetcher", "__version__",
 ]

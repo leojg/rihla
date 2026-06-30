@@ -5,7 +5,7 @@ Edit freely. EZE/AEP (Buenos Aires) are the key money-savers for intercontinenta
 departures from Uruguay - often far cheaper than MVD, a short hop/ferry away.
 
 NOTE: regions are hardcoded here for v1. A general (MCP) tool will want these
-exposed as schema enums, or resolved via Amadeus location lookup - see
+exposed as schema enums, or resolved via a location-lookup API - see
 docs/mcp-readiness.md.
 """
 from __future__ import annotations

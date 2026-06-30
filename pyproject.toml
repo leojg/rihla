@@ -10,9 +10,10 @@ requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Leandro Garcia" }]
 dependencies = [
-    "amadeus",        # Amadeus Self-Service SDK (live fetcher; lazily imported)
     "python-dotenv",  # load credentials from a local .env in the CLI
 ]
+# Live fetchers (Travelpayouts, SerpApi) use stdlib urllib - no extra runtime deps yet.
+# httpx joins at the MCP milestone (M5) for async/concurrent fetching.
 
 [project.optional-dependencies]
 # Pulled in at the MCP release milestone (M5): pip install -e ".[mcp]"

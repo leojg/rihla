@@ -52,12 +52,27 @@ class Gap:
 
 
 @dataclass(frozen=True)
+class Quote:
+    """A price for one (origin, dest, day) from a single source.
+
+    `bookable` separates a real, bookable fare (e.g. SerpApi / Google Flights) from an
+    indicative cached hint (e.g. Travelpayouts' search-history cache). The merge layer
+    uses it so a stale cached price can't out-rank a real one.
+    """
+    price: float
+    source: str
+    bookable: bool = False
+    fetched_at: Optional[str] = None    # ISO8601, optional freshness marker
+
+
+@dataclass(frozen=True)
 class PricedLeg:
     leg: str
     depart: date
     origin: str                     # winning airport within the origin set
     dest: str                       # winning airport within the dest set
     price: float
+    source: str = "?"               # which data source won this (origin, dest, day)
 
 
 @dataclass
