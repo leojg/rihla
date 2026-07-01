@@ -14,13 +14,12 @@ routes and keep `date_step` coarse.
 """
 from __future__ import annotations
 
-import json
 import urllib.parse
-import urllib.request
 from datetime import date
 from typing import Optional
 
 from rihla.core import Quote
+from rihla.fetchers._http import get_json
 
 _BASE = "https://serpapi.com/search.json"
 
@@ -31,6 +30,24 @@ class SerpApiFetcher:
     def __init__(self, api_key: str, currency: str = "USD", timeout: int = 25):
         self.api_key, self.currency, self.timeout = api_key, currency, timeout
 
+    def parse_offer(self, raw: dict) -> Optional[Quote]:
+        """Map one google_flights flight object to a Quote (real fare, so bookable=True).
+
+        The airline/flight_number live on the itinerary's first segment. `link` stays None:
+        SerpApi returns a `booking_token`, not a URL - resolving it is a second, quota-
+        consuming call (deferred).
+        """
+        if not isinstance(raw, dict) or not isinstance(raw.get("price"), (int, float)):
+            return None
+        segs = raw.get("flights") or []
+        first = segs[0] if segs and isinstance(segs[0], dict) else {}
+        return Quote(
+            float(raw["price"]), self.name, bookable=True,
+            airline=first.get("airline"),
+            flight_number=first.get("flight_number"),
+            link=None,
+        )
+
     def quote(self, origin: str, dest: str, day: date) -> Optional[Quote]:
         params = {
             "engine": "google_flights",
@@ -39,12 +56,7 @@ class SerpApiFetcher:
             "currency": self.currency, "api_key": self.api_key,
         }
         url = f"{_BASE}?{urllib.parse.urlencode(params)}"
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "rihla/0.1"})
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                js = json.load(r)
-        except Exception:                       # noqa: BLE001 - treat any failure as "no data"
-            return None
+        js = get_json(url, self.timeout) or {}
         flights = (js.get("best_flights") or []) + (js.get("other_flights") or [])
-        prices = [f["price"] for f in flights if isinstance(f.get("price"), (int, float))]
-        return Quote(float(min(prices)), self.name, bookable=True) if prices else None
+        quotes = [q for q in (self.parse_offer(f) for f in flights) if q is not None]
+        return min(quotes, key=lambda q: q.price) if quotes else None

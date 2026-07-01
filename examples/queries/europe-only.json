@@ -1,0 +1,9 @@
+{
+  "origins": ["MVD", "EZE", "AEP"],
+  "stops": ["EUROPE"],
+  "earliest": "2026-09-08",
+  "latest": "2026-09-22",
+  "stays": [],
+  "date_step": 3,
+  "top": 5
+}

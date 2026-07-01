@@ -68,7 +68,9 @@ def fetch_leg(fetcher: PriceFetcher, leg: Leg) -> dict[date, PricedLeg]:
             for day, q in _route_quotes(fetcher, o, d, leg).items():
                 best = grid.get(day)
                 if best is None or q.price < best.price:
-                    grid[day] = PricedLeg(leg.name, day, o, d, q.price, q.source)
+                    grid[day] = PricedLeg(leg.name, day, o, d, q.price, q.source,
+                                          bookable=q.bookable, airline=q.airline,
+                                          flight_number=q.flight_number, link=q.link)
     return grid
 
 

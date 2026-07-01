@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 from itertools import product
-from typing import Optional
+from typing import Callable, Optional
 
 
 # ------------------------------------------------------------------ model --
@@ -63,6 +63,9 @@ class Quote:
     source: str
     bookable: bool = False
     fetched_at: Optional[str] = None    # ISO8601, optional freshness marker
+    airline: Optional[str] = None       # carrier code (Travelpayouts) or name (SerpApi)
+    flight_number: Optional[str] = None
+    link: Optional[str] = None          # booking deep-link, when the source provides one
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,10 @@ class PricedLeg:
     dest: str                       # winning airport within the dest set
     price: float
     source: str = "?"               # which data source won this (origin, dest, day)
+    bookable: bool = False          # real bookable fare vs. indicative cached hint
+    airline: Optional[str] = None   # carrier that won this (origin, dest, day)
+    flight_number: Optional[str] = None
+    link: Optional[str] = None      # booking deep-link, when the source provides one
 
 
 @dataclass
@@ -128,15 +135,42 @@ def _valid(departs: dict[str, date], gaps: list[Gap]) -> bool:
     return True
 
 
-def optimize(trip: Trip, grid: dict[str, dict[date, PricedLeg]], top: int = 5) -> list[Bundle]:
-    names = [l.name for l in trip.legs]
-    if any(not grid[n] for n in names):
-        return []                           # some leg had no priced dates at all
-    options = [list(grid[n].values()) for n in names]
+_Key = Callable[[Bundle], float]
+
+
+def _combine(leg_names: list[str], grid: dict[str, dict[date, PricedLeg]],
+             gaps: list[Gap], top: int, key: _Key) -> list[Bundle]:
+    """Rank every gap-valid date combination across `leg_names` by `key`.
+
+    `key` is the ranking seam: it defaults to total price, but a future weight
+    function (price + inter-city closeness, etc.) can be injected here (v2).
+    """
+    options = [list(grid[n].values()) for n in leg_names]
     out: list[Bundle] = []
     for combo in product(*options):
-        chosen = dict(zip(names, combo))
-        if _valid({n: pl.depart for n, pl in chosen.items()}, trip.gaps):
+        chosen = dict(zip(leg_names, combo))
+        if _valid({n: pl.depart for n, pl in chosen.items()}, gaps):
             out.append(Bundle(chosen))
-    out.sort(key=lambda b: b.total)
+    out.sort(key=key)
     return out[:top]
+
+
+def optimize(trip: Trip, grid: dict[str, dict[date, PricedLeg]], top: int = 5,
+             key: _Key = lambda b: b.total) -> list[Bundle]:
+    """Rank complete itineraries. Empty if any leg had no priced dates at all."""
+    names = [leg.name for leg in trip.legs]
+    if any(not grid[n] for n in names):
+        return []
+    return _combine(names, grid, trip.gaps, top, key)
+
+
+def optimize_partial(trip: Trip, grid: dict[str, dict[date, PricedLeg]], top: int = 5,
+                     key: _Key = lambda b: b.total) -> list[Bundle]:
+    """Best combinations over the legs that WERE priced (a fallback when a leg is
+    uncovered). Only gaps whose both endpoints are covered are enforced, so a missing
+    middle leg simply unlinks its neighbours. Empty if nothing was priced at all."""
+    covered = [leg.name for leg in trip.legs if grid[leg.name]]
+    if not covered:
+        return []
+    gaps = [g for g in trip.gaps if g.before in covered and g.after in covered]
+    return _combine(covered, grid, gaps, top, key)

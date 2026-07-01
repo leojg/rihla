@@ -13,15 +13,15 @@ zero install; structurally correct per current docs, not exhaustively live-teste
 """
 from __future__ import annotations
 
-import json
 import urllib.parse
-import urllib.request
 from datetime import date
 from typing import Optional
 
 from rihla.core import Quote
+from rihla.fetchers._http import get_json
 
 _BASE = "https://api.travelpayouts.com/aviasales/v3/prices_for_dates"
+_AVIASALES = "https://www.aviasales.com"     # v3 `link` is a relative path off this host
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -47,24 +47,32 @@ class TravelpayoutsFetcher:
             "token": self.token,
         }
         url = f"{_BASE}?{urllib.parse.urlencode(params)}"
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "rihla/0.1"})
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                js = json.load(r)
-        except Exception:                       # noqa: BLE001 - treat any failure as "no data"
-            return []
+        js = get_json(url, self.timeout) or {}
         return js.get("data") or []
+
+    def parse_offer(self, raw: dict) -> Optional[Quote]:
+        """Map one `prices_for_dates` offer to a Quote (indicative/cached, so bookable=False)."""
+        if not isinstance(raw, dict) or not isinstance(raw.get("price"), (int, float)):
+            return None
+        link = raw.get("link")
+        fn = raw.get("flight_number")
+        return Quote(
+            float(raw["price"]), self.name, bookable=False,
+            airline=raw.get("airline"),
+            flight_number=str(fn) if fn is not None else None,
+            link=f"{_AVIASALES}{link}" if isinstance(link, str) and link.startswith("/") else link,
+        )
 
     def quote(self, origin: str, dest: str, day: date) -> Optional[Quote]:
         offers = self._prices_for_dates(origin, dest, day.isoformat(), limit=1)
-        prices = [float(o["price"]) for o in offers if isinstance(o, dict) and "price" in o]
-        return Quote(min(prices), self.name, bookable=False) if prices else None
+        quotes = [q for q in (self.parse_offer(o) for o in offers) if q is not None]
+        return min(quotes, key=lambda q: q.price) if quotes else None
 
     def quote_calendar(self, origin: str, dest: str, month: str) -> dict[date, Quote]:
         out: dict[date, Quote] = {}
         for o in self._prices_for_dates(origin, dest, month, limit=100):
+            q = self.parse_offer(o)
             d = _parse_date(o.get("departure_at")) if isinstance(o, dict) else None
-            p = o.get("price") if isinstance(o, dict) else None
-            if d and isinstance(p, (int, float)) and (d not in out or p < out[d].price):
-                out[d] = Quote(float(p), self.name, bookable=False)
+            if q is not None and d is not None and (d not in out or q.price < out[d].price):
+                out[d] = q
         return out

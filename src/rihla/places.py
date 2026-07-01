@@ -18,6 +18,24 @@ MVD_AREA = Place("Montevideo / Buenos Aires", ("MVD", "EZE", "AEP"))
 EUROPE   = Place("Europe", ("MAD", "BCN", "LIS", "CDG", "FCO", "AMS", "FRA"))
 TOKYO    = Place("Tokyo", ("NRT", "HND"))
 
+# Named regions the query schema can reference by name (the v1 alternative to a
+# free-text geocoder; see docs/mcp-readiness.md gap 2). A query stop is EITHER one of
+# these names OR a raw IATA-code list, resolved by resolve_stop().
+REGIONS: dict[str, Place] = {"MVD_AREA": MVD_AREA, "EUROPE": EUROPE, "TOKYO": TOKYO}
+
+
+def resolve_stop(spec) -> Place:
+    """Resolve a query stop to a Place: a region name (str) or a raw IATA-code list."""
+    if isinstance(spec, str):
+        try:
+            return REGIONS[spec.upper()]
+        except KeyError:
+            raise ValueError(f"unknown region {spec!r}; known: {sorted(REGIONS)}") from None
+    codes = tuple(str(c).strip().upper() for c in spec)
+    if not codes:
+        raise ValueError("a stop given as a list must have at least one airport code")
+    return Place("/".join(codes), codes)
+
 
 def example_trip() -> Trip:
     return linear_trip(

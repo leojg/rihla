@@ -1,0 +1,9 @@
+{
+  "origins": ["GRU"],
+  "stops": [["LIS"], ["NRT", "HND"]],
+  "earliest": "2026-10-01",
+  "latest": "2026-10-10",
+  "stays": [[10, 14]],
+  "date_step": 2,
+  "top": 5
+}

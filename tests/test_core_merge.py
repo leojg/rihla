@@ -32,6 +32,13 @@ def test_merge_empty_is_none():
     assert merge_quotes([None, None]) is None
 
 
+def test_merge_preserves_winning_quote_metadata():
+    real = Quote(150.0, "serpapi", bookable=True, airline="Iberia", flight_number="IB6842")
+    cached = Quote(100.0, "travelpayouts", bookable=False, airline="IB")
+    won = merge_quotes([cached, real])                 # bookable wins over cheaper cached
+    assert won is real and won.airline == "Iberia" and won.flight_number == "IB6842"
+
+
 def test_optimize_offline_returns_ranked_bundles_with_source():
     trip = _trip()
     best = optimize(trip, build_grid(MockFetcher(), trip), top=5)
