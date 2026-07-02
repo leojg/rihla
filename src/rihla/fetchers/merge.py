@@ -33,6 +33,22 @@ class CompositeFetcher:
     def __init__(self, fetchers):
         self.fetchers = list(fetchers)
 
+    @property
+    def sources(self) -> list[str]:
+        """Child source names, for result provenance (`api._sources_of`)."""
+        return [f.name for f in self.fetchers]
+
+    @property
+    def currency(self) -> Optional[str]:
+        """The one currency every declaring child serves (canonical upper), else None.
+
+        None (unknown/mixed) disables the currency guard in `api.search_trip`; a mixed
+        composite is a wiring bug `build_fetcher` can't produce, so it isn't policed here.
+        """
+        declared = {str(c).strip().upper()
+                    for c in (getattr(f, "currency", None) for f in self.fetchers) if c}
+        return declared.pop() if len(declared) == 1 else None
+
     def quote(self, origin: str, dest: str, day: date) -> Optional[Quote]:
         return merge_quotes([f.quote(origin, dest, day) for f in self.fetchers])
 

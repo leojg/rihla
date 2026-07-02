@@ -7,11 +7,14 @@ untyped query (dict/JSON) into the domain model, drives the one network call
 dependency-injected - the caller supplies the fetcher (`cli.choose_fetcher()`, or a
 `MockFetcher` in tests) - so this module does no I/O of its own and no printing.
 
-Result shape:
+Result shape (ADR-0003, amended by ADR-0005):
     {
       "status": "ok" | "partial" | "no_coverage" | "constraints_unsatisfiable",
       "missing_legs": [leg names with no priced dates],
-      "options": [ {complete, total, currency, duration_days, legs: [...]}, ... ],
+      "sources": [data-source names behind the injected fetcher],
+      "options": [ {complete, total, priced_total, currency, duration_days,
+                    legs: [...]}, ... ],          # total is null unless complete
+      "hints": { leg name -> nearest out-of-window fares, for missing legs only },
       "query": <the echoed query>,
     }
 
@@ -22,12 +25,15 @@ when there are <= 1 complete options.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, fields
 from datetime import date
 
 from rihla.core import Bundle, Place, PricedLeg, Trip, linear_trip, optimize, optimize_partial
-from rihla.fetchers import build_grid
-from rihla.places import resolve_stop
+from rihla.fetchers import Observation, build_grid_with_hints
+from rihla.places import REGIONS, resolve_stop
+
+_IATA_RE = re.compile(r"[A-Z]{3}")
 
 
 def _parse_iso(s, field_name: str) -> date:
@@ -49,16 +55,33 @@ class Query:
     stays: list                      # per intermediate stop: (min_nights, max_nights)
     date_step: int = 3
     top: int = 5
-    currency: str = "USD"
+    currency: str = "USD"            # ISO 4217; must match the injected fetcher's (enforced in search_trip)
     adults: int = 1                  # carried + echoed; not yet threaded into fetchers (v1)
 
     def __post_init__(self):
+        self.currency = str(self.currency).strip().upper()
+        if not re.fullmatch(r"[A-Z]{3}", self.currency):
+            raise ValueError(
+                f"currency must be a 3-letter ISO 4217 code (e.g. 'USD', 'EUR'), "
+                f"got {self.currency!r}")
         self.origins = [str(o).strip().upper() for o in self.origins]
         self.stops = [s if isinstance(s, str) else [str(c).strip().upper() for c in s]
                       for s in self.stops]
         self.stays = [tuple(s) for s in self.stays]
         if not self.origins:
             raise ValueError("query needs at least one origin airport")
+        # Loudly reject anything that isn't a 3-letter code: a city name slipped in as a
+        # "code" would otherwise pass, price nothing, and surface as a misleading
+        # no_coverage. Region-name stops (str) are the one exception - resolve_stop
+        # validates those against places.REGIONS.
+        bad = [c for c in self.origins if not _IATA_RE.fullmatch(c)]
+        bad += [c for s in self.stops if not isinstance(s, str) for c in s
+                if not _IATA_RE.fullmatch(c)]
+        if bad:
+            raise ValueError(
+                f"not 3-letter IATA airport codes: {sorted(set(bad))}. Resolve city "
+                f"names to airport codes first (MCP: the resolve_airports tool); a stop "
+                f"may also be a region name: {sorted(REGIONS)}")
         if len(self.stays) != len(self.stops) - 1:
             raise ValueError(
                 f"need one (min,max) stay per intermediate stop: {len(self.stops)} stops "
@@ -128,14 +151,37 @@ def _leg_to_dict(p: PricedLeg) -> dict:
         "source": p.source,
         "bookable": p.bookable,
         "link": p.link,
+        "fetched_at": p.fetched_at,
+    }
+
+
+def _hint_to_dict(o: Observation) -> dict:
+    """Same key names as a leg dict (minus `leg`), so renderers can share formatting."""
+    q = o.quote
+    return {
+        "date": o.day.isoformat(),
+        "from": o.origin,
+        "to": o.dest,
+        "airline": q.airline,
+        "flight_number": q.flight_number,
+        "price": round(q.price, 2),
+        "source": q.source,
+        "bookable": q.bookable,
+        "link": q.link,
+        "fetched_at": q.fetched_at,
     }
 
 
 def _bundle_to_dict(b: Bundle, leg_order: list, currency: str, n_legs: int) -> dict:
     complete = len(b.chosen) == n_legs
+    total = round(b.total, 2)
     return {
         "complete": complete,
-        "total": round(b.total, 2),
+        # An incomplete option's sum covers only the priced legs; calling that "total"
+        # invites reading it as the trip price -> null unless complete (the same honesty
+        # rule as duration_days). `priced_total` carries the subtotal either way.
+        "total": total if complete else None,
+        "priced_total": total,
         "currency": currency,
         # A partial that survives a missing MIDDLE leg spans a gap with no flight in it,
         # so a door-to-door duration would be a lie -> null unless complete.
@@ -144,14 +190,18 @@ def _bundle_to_dict(b: Bundle, leg_order: list, currency: str, n_legs: int) -> d
     }
 
 
-def assemble_result(trip: Trip, grid: dict, top: int = 5, currency: str = "USD") -> dict:
-    """Rank + serialize a (trip, grid) into `{status, missing_legs, options}`.
+def assemble_result(trip: Trip, grid: dict, top: int = 5, currency: str = "USD",
+                    hints: dict = None) -> dict:
+    """Rank + serialize a (trip, grid) into `{status, missing_legs, options, hints}`.
 
     Pure over the already-fetched grid (no I/O) - the ranking/status core of search_trip,
     factored out so the full-before-partial rule and the status vocabulary are testable
     with a hand-built grid (e.g. the constraints_unsatisfiable path a linear query can't
     reach). Complete itineraries always rank first; partials (over the priced legs) are
     appended only when there are <= 1 complete options.
+
+    `hints` is the per-leg out-of-window observations from `build_grid_with_hints`;
+    they surface only for MISSING legs (where "shift your window" is actionable).
     """
     leg_order = [leg.name for leg in trip.legs]
     missing = [n for n in leg_order if not grid[n]]
@@ -181,7 +231,14 @@ def assemble_result(trip: Trip, grid: dict, top: int = 5, currency: str = "USD")
         "status": status,
         "missing_legs": missing,
         "options": [_bundle_to_dict(b, leg_order, currency, n_legs) for b in options],
+        "hints": {n: [_hint_to_dict(o) for o in (hints or {}).get(n, [])]
+                  for n in missing if (hints or {}).get(n)},
     }
+
+
+def _sources_of(fetcher) -> list:
+    """Source names behind the injected fetcher: composite children, else its own name."""
+    return list(getattr(fetcher, "sources", None) or [fetcher.name])
 
 
 def search_trip(query, fetcher) -> dict:
@@ -190,6 +247,20 @@ def search_trip(query, fetcher) -> dict:
     `query` may be a Query or a raw dict; `fetcher` is any PriceFetcher (injected).
     """
     q = query if isinstance(query, Query) else Query.from_dict(query)
+    # A fetcher serves one currency, fixed at construction. If it declares which (mock
+    # doesn't - its prices are synthetic in any currency), a mismatch with the query must
+    # fail loudly here: labeling one currency's prices with another's code is the silent
+    # wrong answer this seam exists to prevent.
+    served = getattr(fetcher, "currency", None)
+    if served and str(served).strip().upper() != q.currency:
+        raise ValueError(
+            f"query asks for {q.currency} but the data source serves "
+            f"{str(served).strip().upper()}; build the fetcher for the query's currency "
+            f"(config.build_fetcher(currency=...))")
     trip = build_trip(q)
-    grid = build_grid(fetcher, trip)
-    return {**assemble_result(trip, grid, top=q.top, currency=q.currency), "query": q.to_dict()}
+    grid, observations = build_grid_with_hints(fetcher, trip)
+    return {
+        **assemble_result(trip, grid, top=q.top, currency=q.currency, hints=observations),
+        "sources": _sources_of(fetcher),
+        "query": q.to_dict(),
+    }

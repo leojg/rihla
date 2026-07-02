@@ -15,7 +15,7 @@ routes and keep `date_step` coarse.
 from __future__ import annotations
 
 import urllib.parse
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from rihla.core import Quote
@@ -28,7 +28,8 @@ class SerpApiFetcher:
     name = "serpapi"
 
     def __init__(self, api_key: str, currency: str = "USD", timeout: int = 25):
-        self.api_key, self.currency, self.timeout = api_key, currency, timeout
+        self.api_key, self.timeout = api_key, timeout
+        self.currency = str(currency).strip().upper()   # google_flights wants ISO 4217 upper
 
     def parse_offer(self, raw: dict) -> Optional[Quote]:
         """Map one google_flights flight object to a Quote (real fare, so bookable=True).
@@ -43,6 +44,8 @@ class SerpApiFetcher:
         first = segs[0] if segs and isinstance(segs[0], dict) else {}
         return Quote(
             float(raw["price"]), self.name, bookable=True,
+            # A live Google Flights quote: fetch time IS observation time.
+            fetched_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             airline=first.get("airline"),
             flight_number=first.get("flight_number"),
             link=None,

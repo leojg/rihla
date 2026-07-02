@@ -13,8 +13,9 @@ zero install; structurally correct per current docs, not exhaustively live-teste
 """
 from __future__ import annotations
 
+import re
 import urllib.parse
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from rihla.core import Quote
@@ -22,6 +23,21 @@ from rihla.fetchers._http import get_json
 
 _BASE = "https://api.travelpayouts.com/aviasales/v3/prices_for_dates"
 _AVIASALES = "https://www.aviasales.com"     # v3 `link` is a relative path off this host
+# v3 offers expose no freshness field (probed 2026-07-02), but the `link` embeds the
+# Aviasales observation date as `search_date=DDMMYYYY` - the honest "how stale is this
+# cached fare" signal, days truer than stamping our own fetch time.
+_SEARCH_DATE_RE = re.compile(r"[?&]search_date=(\d{2})(\d{2})(\d{4})(?:&|$)")
+
+
+def _fetched_at(link: Optional[str]) -> str:
+    m = _SEARCH_DATE_RE.search(link) if isinstance(link, str) else None
+    if m:
+        dd, mm, yyyy = m.groups()
+        try:
+            return date(int(yyyy), int(mm), int(dd)).isoformat()
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -37,7 +53,8 @@ class TravelpayoutsFetcher:
     name = "travelpayouts"
 
     def __init__(self, token: str, currency: str = "usd", timeout: int = 20):
-        self.token, self.currency, self.timeout = token, currency, timeout
+        self.token, self.timeout = token, timeout
+        self.currency = str(currency).strip().lower()   # v3 wire format is lowercase
 
     def _prices_for_dates(self, origin: str, dest: str, departure_at: str, limit: int) -> list:
         params = {
@@ -58,6 +75,7 @@ class TravelpayoutsFetcher:
         fn = raw.get("flight_number")
         return Quote(
             float(raw["price"]), self.name, bookable=False,
+            fetched_at=_fetched_at(link),
             airline=raw.get("airline"),
             flight_number=str(fn) if fn is not None else None,
             link=f"{_AVIASALES}{link}" if isinstance(link, str) and link.startswith("/") else link,

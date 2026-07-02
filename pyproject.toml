@@ -23,6 +23,7 @@ dev = ["pytest", "ruff"]
 
 [project.scripts]
 rihla = "rihla.cli:main"
+rihla-mcp = "rihla.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

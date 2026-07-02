@@ -12,17 +12,11 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import sys
 
 from rihla.api import search_trip
-from rihla.fetchers import (
-    CompositeFetcher,
-    MockFetcher,
-    PriceFetcher,
-    SerpApiFetcher,
-    TravelpayoutsFetcher,
-)
+from rihla.config import build_fetcher
+from rihla.fetchers import PriceFetcher
 from rihla.places import REGIONS
 
 # The §4 canonical query, as the default when no query file is given.
@@ -37,32 +31,17 @@ CANONICAL_QUERY = {
 }
 
 
-def choose_fetcher() -> PriceFetcher:
-    """Build the data source from RIHLA_PROFILE + whatever keys are present.
+def choose_fetcher(currency: str = "USD") -> PriceFetcher:
+    """Build the data source from the environment and print the selection banner.
 
-    local  (default): every source whose key is set, incl. SerpApi BYOK.
-    hosted          : redistribution-licensed sources only (SerpApi disabled).
-    mock            : force the offline MockFetcher.
+    Selection logic lives in `config.build_fetcher` (print-free, so the MCP server can
+    share it); this wrapper is just the CLI's rendering of the notes.
     """
-    profile = os.getenv("RIHLA_PROFILE", "local").strip().lower()
-    if profile == "mock":
-        print("(RIHLA_PROFILE=mock - offline MockFetcher)\n")
-        return MockFetcher()
-
-    fetchers: list[PriceFetcher] = []
-    if os.getenv("TRAVELPAYOUTS_TOKEN"):
-        fetchers.append(TravelpayoutsFetcher(os.environ["TRAVELPAYOUTS_TOKEN"]))
-    if os.getenv("SERPAPI_KEY"):
-        if profile == "hosted":
-            print("(profile=hosted - SerpApi disabled: licensed sources only)")
-        else:
-            fetchers.append(SerpApiFetcher(os.environ["SERPAPI_KEY"]))
-
-    if not fetchers:
-        print("(no data-source keys set - offline MockFetcher)\n")
-        return MockFetcher()
-    print(f"(profile={profile} | sources: {', '.join(f.name for f in fetchers)})\n")
-    return CompositeFetcher(fetchers) if len(fetchers) > 1 else fetchers[0]
+    fetcher, notes = build_fetcher(currency=currency)
+    for note in notes:
+        print(note)
+    print()
+    return fetcher
 
 
 def _fmt_leg(leg: dict, show_links: bool = False) -> str:
@@ -79,12 +58,26 @@ def _fmt_leg(leg: dict, show_links: bool = False) -> str:
     return line
 
 
+def _print_hints(res: dict, show_links: bool = False) -> None:
+    """Nearest cached fares just outside the departure window, per unpriced leg."""
+    hints = res.get("hints") or {}
+    if not any(hints.values()):
+        return
+    print("Nearest fares OUTSIDE the departure window (shift/widen dates to catch these):")
+    for leg_name, entries in hints.items():
+        print(f"  {leg_name}:")
+        for h in entries:
+            print("     " + _fmt_leg(h, show_links))
+    print()
+
+
 def _print_result(res: dict, show_links: bool = False) -> None:
     status = res["status"]
     if status == "no_coverage":
         legs = ", ".join(res["missing_legs"])
         print(f"No prices found for any leg ({legs}). Widen the windows, add a source "
               "(e.g. SERPAPI_KEY for thin routes like Tokyo->South America), or check coverage.")
+        _print_hints(res, show_links)
         return
     if status == "constraints_unsatisfiable":
         print("All legs priced, but no date combination satisfies the stay constraints. "
@@ -97,12 +90,15 @@ def _print_result(res: dict, show_links: bool = False) -> None:
 
     total_legs = len(res["options"][0]["legs"]) + len(res["missing_legs"]) if res["options"] else 0
     for i, opt in enumerate(res["options"], 1):
+        # `total` is null unless complete (ADR-0005) - a partial shows its priced subtotal.
+        amount = opt["total"] if opt["complete"] else opt["priced_total"]
         meta = (f"{opt['duration_days']} days door-to-door" if opt["complete"]
-                else f"partial: {len(opt['legs'])} of {total_legs} legs")
-        print(f"{i}. {opt['total']:,.0f} {opt['currency']}   ({meta})")
+                else f"partial: {len(opt['legs'])} of {total_legs} legs - priced legs only")
+        print(f"{i}. {amount:,.0f} {opt['currency']}   ({meta})")
         for leg in opt["legs"]:
             print("     " + _fmt_leg(leg, show_links))
         print()
+    _print_hints(res, show_links)
     if not show_links and any(leg["link"] for opt in res["options"] for leg in opt["legs"]):
         print("(booking links hidden - re-run with --links to show them)")
 
@@ -192,7 +188,7 @@ def main() -> None:
         query = CANONICAL_QUERY
         print("query: (canonical Uruguay -> Europe -> Tokyo -> home)")
 
-    fetcher = choose_fetcher()
+    fetcher = choose_fetcher(query.get("currency", "USD"))
     _print_result(search_trip(query, fetcher), show_links)
 
 

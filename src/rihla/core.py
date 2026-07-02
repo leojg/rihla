@@ -80,6 +80,7 @@ class PricedLeg:
     airline: Optional[str] = None   # carrier that won this (origin, dest, day)
     flight_number: Optional[str] = None
     link: Optional[str] = None      # booking deep-link, when the source provides one
+    fetched_at: Optional[str] = None  # ISO8601 freshness, copied from the winning Quote
 
 
 @dataclass
