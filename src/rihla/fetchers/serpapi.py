@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 fetchers/serpapi.py - BYO-key real-data fill (DEV / SELF-HOST ONLY).
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 config.py - environment-driven fetcher selection, print-free.
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 Tests for the place-resolution seam (resolve.py): exact-code matching over the fuzzy
 autocomplete response (the linchpin), both response shapes (airport vs city), and the

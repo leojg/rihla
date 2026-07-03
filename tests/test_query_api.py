@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 Tests for the query->result API: schema round-trip, multi-airport substitution, airline
 surfacing, the honest no-answer statuses (partial / no_coverage / constraints), and the
@@ -176,7 +178,7 @@ def test_partial_when_a_leg_is_uncovered():
         assert opt["complete"] is False
         assert opt["duration_days"] is None            # partial spans a missing middle leg
         assert opt["total"] is None                    # an unpriced leg -> no trip total
-        assert opt["priced_total"] == round(sum(l["price"] for l in opt["legs"]), 2)
+        assert opt["priced_total"] == round(sum(pl["price"] for pl in opt["legs"]), 2)
         assert [pl["leg"] for pl in opt["legs"]] == ["leg1", "leg3"]
 
 

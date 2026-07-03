@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 resolve.py - free-text place -> validated airport codes: the resolution seam.
 

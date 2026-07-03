@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 Tests for the pure optimizer, the multi-source merge policy, and the fetch layer's
 calendar-authoritative rule / hints plumbing (ADR-0005).

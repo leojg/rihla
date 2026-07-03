@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 api.py - the search_trip seam: a serializable Query in, a serializable result dict out.
 

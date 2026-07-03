@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 mcp_server.py - the local stdio MCP server: two tools, resolve then search.
 

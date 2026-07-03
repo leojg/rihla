@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 Tests for the calendar TTL cache (fetchers/cache.py) and its config wiring.
 Runnable via pytest OR standalone: `python tests/test_cache.py`.

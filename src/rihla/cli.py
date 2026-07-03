@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 cli.py - run a query from the command line.
 
@@ -7,13 +9,15 @@ corrupted by stray stdout. This is a thin adapter over `search_trip` - the same 
 future MCP server wraps.
 
 Usage:
-  python -m rihla.cli [query.json]      # no arg -> the canonical Uruguay->Europe->Tokyo trip
+  rihla [query.json] [--links]     # no arg -> the canonical Uruguay->Europe->Tokyo trip
+  rihla -i                         # build the query interactively
 """
 from __future__ import annotations
 
+import argparse
 import json
-import sys
 
+from rihla import __version__
 from rihla.api import search_trip
 from rihla.config import build_fetcher
 from rihla.fetchers import PriceFetcher
@@ -168,6 +172,19 @@ def prompt_query() -> dict:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="rihla",
+        description="Flexible multi-leg, multi-airport flight search - cheapest "
+                    "combinations across the whole itinerary.",
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("query_file", nargs="?", metavar="query.json",
+                        help="query file to run (default: the canonical demo trip)")
+    parser.add_argument("-i", "--interactive", action="store_true",
+                        help="build the query interactively instead of from a file")
+    parser.add_argument("--links", action="store_true", help="show booking links")
+    args = parser.parse_args()
+
     # Load a local .env if python-dotenv is installed; harmless if it isn't.
     try:
         from dotenv import load_dotenv
@@ -175,21 +192,21 @@ def main() -> None:
     except ImportError:
         pass
 
-    args = sys.argv[1:]
-    show_links = "--links" in args
-    args = [a for a in args if a != "--links"]
-    if args and args[0] in ("-i", "--interactive"):
+    if args.interactive:
         query = prompt_query()
-    elif args:
-        with open(args[0], encoding="utf-8") as f:
-            query = json.load(f)
-        print(f"query: {args[0]}")
+    elif args.query_file:
+        try:
+            with open(args.query_file, encoding="utf-8") as f:
+                query = json.load(f)
+        except FileNotFoundError:
+            parser.error(f"query file not found: {args.query_file}")
+        print(f"query: {args.query_file}")
     else:
         query = CANONICAL_QUERY
         print("query: (canonical Uruguay -> Europe -> Tokyo -> home)")
 
     fetcher = choose_fetcher(query.get("currency", "USD"))
-    _print_result(search_trip(query, fetcher), show_links)
+    _print_result(search_trip(query, fetcher), show_links=args.links)
 
 
 if __name__ == "__main__":

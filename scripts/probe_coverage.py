@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 scripts/probe_coverage.py - THROWAWAY coverage probe (NOT part of the rihla package).
 

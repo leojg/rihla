@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Leandro Garcia
 """
 fetchers/_http.py - shared HTTP transport for the network-touching fetchers.
 
