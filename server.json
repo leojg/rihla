@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.leojg/rihla",
+  "description": "Flexible multi-leg, multi-airport flight search - cheapest valid combination across an itinerary.",
+  "repository": {
+    "url": "https://github.com/leojg/rihla",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "rihla-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TRAVELPAYOUTS_TOKEN",
+          "description": "Travelpayouts Data API token (free) - the primary price source. Without any keys the server runs on offline mock data.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SERPAPI_KEY",
+          "description": "SerpApi key (optional, 250 free searches/mo) - fills routes Travelpayouts misses with bookable Google Flights fares.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "RIHLA_PROFILE",
+          "description": "Source profile: 'local' (all configured sources), 'hosted' (redistribution-licensed only), or 'mock' (offline).",
+          "isRequired": false,
+          "default": "local"
+        }
+      ]
+    }
+  ]
+}

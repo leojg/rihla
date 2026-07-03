@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+# Pure-metadata launcher package: no code of its own. Exists so the MCP registry
+# convention `uvx rihla-mcp` resolves and launches the server directly, while the
+# main `rihla` package keeps its lean CLI-only default install (mcp deps stay
+# behind the [mcp] extra there). The dependency is deliberately unpinned - this
+# stub should never need a release when rihla ships one.
+[project]
+name = "rihla-mcp"
+version = "0.1.0"
+description = "MCP server for Rihla - flexible multi-leg, multi-airport flight search. Launcher for rihla[mcp]."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Leandro Garcia" }]
+keywords = ["mcp", "mcp-server", "flights", "flight-search", "travel"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet",
+]
+dependencies = ["rihla[mcp]"]
+
+[project.urls]
+Homepage = "https://github.com/leojg/rihla"
+Repository = "https://github.com/leojg/rihla"
+Issues = "https://github.com/leojg/rihla/issues"
+
+[project.scripts]
+rihla-mcp = "rihla.mcp_server:main"
+
+[tool.setuptools]
+packages = []
